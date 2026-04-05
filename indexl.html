@@ -1,0 +1,2671 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بلغ - نظام البلاغات الذكي</title>
+    
+<!-- استدعاء مكتبة الخرائط لعرض المواقع والتفاعل معها -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
+<!-- مكتبة لعرض الرسوم البيانية والإحصائيات -->
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+<!-- ملفات تشغيل الخريطة وإضافة المسارات -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    
+    <style>
+        /* تعريف الألوان والمتغيرات الأساسية المستخدمة في التصميم */
+       :root {
+            --primary: #2d6a4f;
+            --primary-dark: #1b4332;
+            --secondary: #40916c;
+            --accent: #ff9f1c;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --gray: #64748b;
+            --light-gray: #f1f5f9;
+            --white: #ffffff;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --shadow-lg: rgba(0, 0, 0, 0.15);
+            --font-size-base: 16px;
+        }
+/* تغيير الألوان عند تفعيل الوضع الليلي */
+        [data-theme="dark"] {
+            --white: #1e293b;
+            --light-gray: #334155;
+            --dark: #f8fafc;
+            --gray: #cbd5e0;
+            --shadow: rgba(255, 255, 255, 0.05);
+            --shadow-lg: rgba(255, 255, 255, 0.1);
+        }
+/* إعادة تعيين الهوامش والقيم الافتراضية لكل العناصر */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+/* تنسيق الصفحة بالكامل مثل الخط والخلفية */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+            color: var(--dark);
+            direction: rtl;
+            font-size: var(--font-size-base);
+            transition: all 0.3s ease;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Toast notification system */
+        #toast-container {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .toast {
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-size: 1em;
+            font-weight: 600;
+            color: white;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            animation: toastIn 0.3s ease, toastOut 0.4s ease 2.8s forwards;
+            pointer-events: auto;
+            max-width: 380px;
+            text-align: center;
+        }
+
+        .toast-success { background: linear-gradient(135deg, #10b981, #059669); }
+        .toast-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .toast-error   { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .toast-info    { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateY(0); }
+            to   { opacity: 0; transform: translateY(20px); }
+        }
+
+        /* Out-of-bounds warning banner */
+        #outOfBoundsWarning {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(239,68,68,0.95);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.95em;
+            z-index: 1000;
+            text-align: center;
+            box-shadow: 0 4px 14px rgba(239,68,68,0.4);
+            display: none;
+            white-space: nowrap;
+        }
+
+/* تنسيق شعار النظام */
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: bold;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 4px 12px var(--shadow-lg);
+            position: relative;
+        }
+
+        .logo-icon::after {
+            content: '📢';
+            position: absolute;
+        }
+
+        .logo-text {
+            font-size: 1.8em;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+/* زر فتح قائمة الإعدادات */
+        .settings-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 55px;
+            height: 55px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 26px;
+            cursor: pointer;
+            box-shadow: 0 8px 20px var(--shadow-lg);
+            z-index: 10000;
+            transition: all 0.3s ease;
+        }
+
+        .settings-btn:hover {
+            transform: rotate(90deg) scale(1.1);
+            box-shadow: 0 12px 28px var(--shadow-lg);
+        }
+/* قائمة تحتوي على إعدادات مثل الوضع الليلي وحجم الخط */
+        .settings-menu {
+            position: fixed;
+            top: 90px;
+            left: 20px;
+            background: var(--white);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 40px var(--shadow-lg);
+            z-index: 9999;
+            min-width: 250px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .settings-menu h3 {
+            margin-bottom: 20px;
+            color: var(--dark);
+            font-size: 1.3em;
+        }
+
+        .setting-item {
+            margin-bottom: 18px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .setting-item button {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--light-gray);
+            border-radius: 12px;
+            background: var(--white);
+            color: var(--dark);
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .setting-item button:hover {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .font-size-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .font-size-controls button {
+            flex: 1;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+/* تصميم الصفحة الأولى التي تظهر للمستخدم */
+        #welcomePage {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            /* خلفية الصفحة الرئيسية للنظام */
+            background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+        }
+
+        .welcome-container {
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .welcome-header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .welcome-logo {
+            width: 120px;
+            height: 120px;
+            background: var(--white);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            margin: 0 auto 30px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .welcome-header h1 {
+            font-size: 3.5em;
+            color: white;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .welcome-header p {
+            font-size: 1.4em;
+            color: rgba(255,255,255,0.95);
+        }
+/* عرض خيارات المستخدم (مبلغ أو منقذ) */
+        .role-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .role-card {
+            background: var(--white);
+            padding: 50px 30px;
+            border-radius: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .role-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .role-card:hover {
+            transform: translateY(-15px) scale(1.02);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+        }
+
+        .role-card:hover::before {
+            opacity: 1;
+        }
+
+        .role-card:hover * {
+            color: white !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        .role-icon {
+            font-size: 5em;
+            margin-bottom: 25px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+        }
+
+        .role-card h2 {
+            color: var(--dark);
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .role-card p {
+            color: var(--gray);
+            font-size: 1.1em;
+        }
+
+/* نافذة تظهر خطوات استخدام النظام */
+        .instructions-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .instructions-content {
+            background: var(--white);
+            border-radius: 25px;
+            padding: 45px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            animation: scaleIn 0.4s ease;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .instructions-content h2 {
+            color: var(--dark);
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2em;
+        }
+
+        .instruction-step {
+            background: linear-gradient(135deg, #f0fff4 0%, #dcfce7 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .instruction-step:hover {
+            transform: translateX(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .step-number {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.3em;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .instructions-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 16px 35px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: 0 8px 20px rgba(45, 106, 79, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 28px rgba(45, 106, 79, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--light-gray);
+            color: var(--dark);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray);
+            color: white;
+        }
+
+/* واجهة تسجيل دخول المنقذ */
+        #rescuerLoginPage {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: var(--white);
+            padding: 50px;
+            border-radius: 25px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.2);
+            max-width: 550px;
+            width: 100%;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-icon {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, var(--danger) 0%, var(--accent) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 45px;
+            margin: 0 auto 25px;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 1.05em;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 15px 18px;
+            border: 2px solid var(--light-gray);
+            border-radius: 12px;
+            font-size: 1.05em;
+            transition: all 0.3s;
+            background: var(--white);
+            color: var(--dark);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(45, 106, 79, 0.1);
+        }
+
+        .error-message {
+            color: var(--danger);
+            font-size: 0.95em;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+/* واجهة إدخال البلاغ من المستخدم */
+        #reporterPage {
+            min-height: 100vh;
+            padding: 30px 20px;
+            padding-top: 90px;
+            background: var(--light-gray);
+        }
+
+        .page-header {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 20px var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-size: 2.2em;
+            margin-bottom: 8px;
+        }
+
+        .report-form {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .form-section {
+            margin-bottom: 35px;
+        }
+
+        .form-section h3 {
+            margin-bottom: 18px;
+            color: var(--dark);
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .neighborhood-select {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .neighborhood-btn {
+            padding: 20px;
+            border: 3px solid var(--light-gray);
+            border-radius: 15px;
+            background: var(--white);
+            color: var(--dark);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .neighborhood-btn:hover {
+            border-color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .neighborhood-btn.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 8px 20px rgba(45, 106, 79, 0.3);
+        }
+/* عرض الخريطة لتحديد موقع البلاغ */
+        .map-container {
+            height: 500px;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 3px solid var(--light-gray);
+            position: relative;
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .map-zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 2px solid var(--light-gray);
+            border-radius: 8px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--shadow);
+            transition: all 0.3s;
+        }
+
+        .zoom-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .form-textarea {
+            width: 100%;
+            padding: 15px 18px;
+            border: 2px solid var(--light-gray);
+            border-radius: 12px;
+            font-size: 1.05em;
+            resize: vertical;
+            min-height: 120px;
+            background: var(--white);
+            color: var(--dark);
+            font-family: inherit;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(45, 106, 79, 0.1);
+        }
+
+        .severity-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .severity-btn {
+            padding: 25px;
+            border: 3px solid var(--light-gray);
+            border-radius: 15px;
+            background: var(--white);
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .severity-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .severity-btn.active {
+            border-width: 4px;
+        }
+
+        .severity-btn.critical {
+            color: var(--danger);
+        }
+
+        .severity-btn.critical.active {
+            background: #fee;
+            border-color: var(--danger);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .severity-btn.moderate {
+            color: var(--warning);
+        }
+
+        .severity-btn.moderate.active {
+            background: #fffbeb;
+            border-color: var(--warning);
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .severity-btn.low {
+            color: var(--success);
+        }
+
+        .severity-btn.low.active {
+            background: #f0fdf4;
+            border-color: var(--success);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+/* قسم رفع صورة لتوضيح المشكلة */
+        .image-upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .upload-btn {
+            padding: 40px;
+            border: 3px dashed var(--light-gray);
+            border-radius: 15px;
+            background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .upload-btn:hover {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, #f0fff4 0%, #dcfce7 100%);
+            transform: translateY(-3px);
+        }
+
+        .upload-icon {
+            font-size: 45px;
+            margin-bottom: 12px;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            border-radius: 15px;
+            margin-top: 20px;
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 28px rgba(16, 185, 129, 0.4);
+        }
+
+/* لوحة تحكم المنقذ لعرض البلاغات */
+        #rescuerDashboard {
+            min-height: 100vh;
+            padding: 30px 20px;
+            padding-top: 90px;
+            background: var(--light-gray);
+        }
+
+        .dashboard-header {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 20px var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .welcome-text {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+/* عرض بيانات وإحصائيات البلاغات */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: var(--white);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px var(--shadow);
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px var(--shadow-lg);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 18px;
+        }
+
+        .stat-title {
+            color: var(--gray);
+            font-size: 1em;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+
+        .map-section {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px var(--shadow);
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #rescuerMap {
+            height: 550px;
+            border-radius: 15px;
+            border: 3px solid var(--light-gray);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .chart-section {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        .reports-section {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 12px;
+        }
+
+        .tab-btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 10px;
+            background: var(--light-gray);
+            color: var(--dark);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(45, 106, 79, 0.3);
+        }
+
+        .report-card {
+            background: var(--white);
+            border: 3px solid var(--light-gray);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .report-card:hover {
+            box-shadow: 0 12px 30px var(--shadow);
+            transform: translateY(-3px);
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .severity-badge {
+            padding: 10px 18px;
+            border-radius: 25px;
+            font-size: 0.95em;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge-critical {
+            background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+            color: var(--danger);
+        }
+
+        .badge-moderate {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            color: var(--warning);
+        }
+
+        .badge-low {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            color: var(--success);
+        }
+
+        .report-info {
+            margin-bottom: 20px;
+        }
+
+        .report-info h4 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+
+        .report-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .action-btn {
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.95em;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-pending {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            color: var(--warning);
+            border: 2px solid var(--warning);
+        }
+
+        .btn-pending:hover:not(:disabled) {
+            background: var(--warning);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .btn-resolved {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            color: var(--success);
+            border: 2px solid var(--success);
+        }
+
+        .btn-resolved:hover:not(:disabled) {
+            background: var(--success);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .btn-locate {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(45, 106, 79, 0.3);
+        }
+
+        .btn-locate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(45, 106, 79, 0.4);
+        }
+
+        /* Success Modal */
+        .success-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .success-content {
+            background: var(--white);
+            padding: 50px;
+            border-radius: 25px;
+            text-align: center;
+            max-width: 550px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            animation: scaleIn 0.4s ease;
+        }
+
+        .success-icon {
+            width: 110px;
+            height: 110px;
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 55px;
+            margin: 0 auto 25px;
+            box-shadow: 0 8px 20px #10b9814d;
+            animation: successPulse 1s ease;
+        }
+
+        @keyframes successPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+/* جعل التصميم مناسب لجميع الشاشات */
+        @media (max-width: 768px) {
+            .role-selection {
+                grid-template-columns: 1fr;
+            }
+
+            .welcome-header h1 {
+                font-size: 2.5em;
+            }
+
+            .neighborhood-select {
+                grid-template-columns: 1fr;
+            }
+
+            .severity-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .image-upload-section {
+                grid-template-columns: 1fr;
+            }
+
+            .report-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .page-header {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .settings-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 22px;
+            }
+
+            .welcome-header h1 {
+                font-size: 2em;
+            }
+
+            .role-icon {
+                font-size: 4em;
+            }
+        }
+
+/* تخصيص شكل عناصر الخريطة */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 8px 20px var(--shadow);
+        }
+
+        .custom-marker {
+            font-size: 35px;
+        }
+
+        .landmark-marker {
+            background: white;
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+/* صورة مصغرة في البلاغ */
+.report-thumb {
+    width: 80px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid var(--light-gray);
+    transition: all 0.3s;
+    display: block;
+    margin-top: 10px;
+}
+.report-thumb:hover {
+    border-color: var(--primary);
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+/* Lightbox */
+.lightbox-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(4px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+.lightbox-overlay img {
+    max-width: 90vw;
+    max-height: 85vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.lightbox-close {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: white;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: all 0.2s;
+}
+.lightbox-close:hover {
+    background: var(--danger);
+    color: white;
+    transform: scale(1.1);
+}
+
+/* فلتر البلاغات */
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    background: var(--light-gray);
+    border-radius: 14px;
+}
+.filter-select {
+    padding: 10px 14px;
+    border: 2px solid var(--light-gray);
+    border-radius: 10px;
+    background: var(--white);
+    color: var(--dark);
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+    min-width: 140px;
+    transition: border-color 0.2s;
+}
+.filter-select:focus { outline: none; border-color: var(--primary); }
+.filter-clear-btn {
+    padding: 10px 18px;
+    background: var(--white);
+    border: 2px solid var(--danger);
+    border-radius: 10px;
+    color: var(--danger);
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.filter-clear-btn:hover { background: var(--danger); color: white; }
+
+/* تاريخ الإغلاق */
+.close-date-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    color: var(--success);
+    border: 1.5px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 0.88em;
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+/* الإحصائيات الشهرية */
+.monthly-stats-section {
+    background: var(--white);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 8px 20px var(--shadow);
+    margin-bottom: 25px;
+}
+.monthly-comparison {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.month-stat-card {
+    background: var(--light-gray);
+    padding: 18px;
+    border-radius: 14px;
+    text-align: center;
+}
+.month-stat-card .label { font-size: 0.9em; color: var(--gray); margin-bottom: 6px; }
+.month-stat-card .value { font-size: 2em; font-weight: bold; color: var(--dark); }
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 700;
+    margin-top: 6px;
+}
+.trend-up { background: #fee; color: var(--danger); }
+.trend-down { background: #f0fdf4; color: var(--success); }
+.trend-stable { background: #f8fafc; color: var(--gray); }
+.monthly-chart-container { height: 220px; position: relative; }
+
+/* زر تبديل اللغة */
+.lang-toggle-btn {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid var(--light-gray);
+    border-radius: 12px;
+    background: var(--white);
+    color: var(--dark);
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+.lang-toggle-btn:hover {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+[data-theme="dark"] .instruction-step {
+    background: #334155; 
+    color: #ffffff;
+}
+
+[data-theme="dark"] .instruction-step p {
+    color: #ffffff;
+}
+
+[data-theme="dark"] .instructions-content h2 {
+    color: #ffffff;
+}
+    </style>
+</head>
+<body>
+<!-- زر فتح قائمة الإعدادات -->
+    <button class="settings-btn" onclick="toggleSettings()">⚙️</button>
+    
+<!-- قائمة تحتوي على خيارات التحكم مثل الوضع وحجم الخط -->
+    <div id="settingsMenu" class="settings-menu hidden">
+        <h3>⚙️ الإعدادات</h3>
+        <div class="setting-item">
+            <label>🌓 الوضع</label>
+            <button onclick="toggleTheme()">تبديل الوضع (ليلي/نهاري)</button>
+        </div>
+        <div class="setting-item">
+            <label>📏 حجم الخط</label>
+            <div class="font-size-controls">
+                <button onclick="changeFontSize('decrease')">-</button>
+                <button onclick="changeFontSize('increase')">+</button>
+            </div>
+        </div>
+        <div class="setting-item" id="logoutSection" class="hidden">
+            <button onclick="logout()" style="background: linear-gradient(135deg, var(--danger) 0%, var(--accent) 100%); color: white; border: none;">
+                🚪 تسجيل الخروج
+            </button>
+        </div>
+    </div>
+
+<!-- الصفحة الأولى لاختيار نوع المستخدم -->
+    <div id="welcomePage">
+        <div class="welcome-container">
+            <div class="welcome-header">
+                <div class="welcome-logo">📢</div>
+                <h1>بلّغ</h1>
+                <p>نظام البلاغات الذكي لقرية الشجرة - الرمثا</p>
+            </div>
+
+            <div class="role-selection">
+                <div class="role-card" onclick="selectRole('reporter')">
+                    <div class="role-icon">👤</div>
+                    <h2>دخول كمبلغ</h2>
+                    <p>قدم بلاغ عن مشكلة في منطقتك بسهولة</p>
+                </div>
+
+                <div class="role-card" onclick="selectRole('rescuer')">
+                    <div class="role-icon">🚨</div>
+                    <h2>دخول كمنقذ</h2>
+                    <p>إدارة البلاغات وحل المشاكل بكفاءة</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- نافذة تعرض خطوات تقديم البلاغ -->
+    <div id="reporterInstructions" class="instructions-modal hidden">
+        <div class="instructions-content">
+            <h2 id="reporterInstrTitle">📋 تعليمات تقديم البلاغ</h2>
+            <div class="instruction-step">
+                <div class="step-number">1</div>
+                <p id="reporterStep1">اختر الحي الذي تريد الإبلاغ عنه من القائمة</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">2</div>
+                <p id="reporterStep2">حدد الموقع المباشر على الخريطة بدقة</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">3</div>
+                <p id="reporterStep3">اكتب وصفاً تفصيلياً واضحاً للمشكلة</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">4</div>
+                <p id="reporterStep4">حدد مستوى الخطورة بناءً على الوضع</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">5</div>
+                <p id="reporterStep5">أضف صورة للمشكلة إن أمكن (موصى به)</p>
+            </div>
+            <div class="instructions-buttons">
+                <button class="btn btn-primary" id="reporterInstrStartBtn" onclick="closeReporterInstructions()">✅ ابدأ الآن</button>
+            </div>
+        </div>
+    </div>
+
+<!-- نافذة توضح طريقة التعامل مع البلاغات -->
+    <div id="rescuerInstructions" class="instructions-modal hidden">
+        <div class="instructions-content">
+            <h2 id="rescuerInstrTitle">🚨 تعليمات المنقذ</h2>
+            <div class="instruction-step">
+                <div class="step-number">1</div>
+                <p id="rescuerStep1">تحقق من البلاغات على الخريطة - الألوان تشير للخطورة</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">2</div>
+                <p id="rescuerStep2">راجع قائمة البلاغات المرتبة حسب الخطورة</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">3</div>
+                <p id="rescuerStep3">اضغط على "🗺️ الرؤية على الخريطة" لمعرفة المسار</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">4</div>
+                <p id="rescuerStep4">غير حالة البلاغ إلى "⏳ قيد المعالجة" عند البدء</p>
+            </div>
+            <div class="instruction-step">
+                <div class="step-number">5</div>
+                <p id="rescuerStep5">اضغط "✅ تم الحل" عند إكمال المهمة</p>
+            </div>
+            <div class="instructions-buttons">
+                <button class="btn btn-primary" id="rescuerInstrStartBtn" onclick="closeRescuerInstructions()">🚀 ابدأ العمل</button>
+            </div>
+        </div>
+    </div>
+
+<!-- صفحة إدخال بيانات المنقذ للدخول للنظام -->
+    <div id="rescuerLoginPage" class="hidden">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-icon">🚨</div>
+                <h2 id="loginTitle">تسجيل دخول المنقذ</h2>
+                <p id="loginSubtitle" style="color: var(--gray); margin-top: 10px;">أدخل بياناتك للوصول إلى لوحة التحكم</p>
+            </div>
+            <form onsubmit="rescuerLogin(event)">
+                <div class="form-group">
+                    <label class="form-label" id="nameLabel">📝 الاسم الكامل *</label>
+                    <input type="text" id="rescuerName" class="form-input" placeholder="أدخل اسمك الكامل" required>
+                    <div id="nameError" class="error-message hidden">❌ يجب أن يحتوي الاسم على حروف فقط</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" id="idLabel">🆔 الرقم الوطني *</label>
+                    <input type="text" id="rescuerNationalId" class="form-input" placeholder="أدخل الرقم الوطني (10 أرقام)" required maxlength="10">
+                    <div id="idError" class="error-message hidden">❌ يجب أن يكون الرقم الوطني 10 أرقام فقط</div>
+                </div>
+                <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 12px;">🔓 تسجيل الدخول</button>
+                <button type="button" id="loginBackBtn" class="btn btn-secondary" style="width: 100%;" onclick="backToWelcome()">↩️ رجوع</button>
+            </form>
+        </div>
+    </div>
+
+<!-- صفحة إدخال بيانات البلاغ -->
+    <div id="reporterPage" class="hidden">
+        <div class="page-header">
+            <div>
+                <div class="logo">
+                    <div class="logo-icon"></div>
+                    <span class="logo-text" id="reporterLogoText">بلغ</span>
+                </div>
+                <h1 class="page-title" id="reporterPageTitle">تقديم بلاغ جديد</h1>
+                <p id="reporterPageSubtitle" style="color: var(--gray);">قرية الشجرة - الرمثا 📍</p>
+            </div>
+        </div>
+
+        <div class="report-form">
+            <div class="form-section">
+                <h3 id="neighborhoodTitle">🏘️ اختر الحي</h3>
+                <div class="neighborhood-select">
+                    <button class="neighborhood-btn" onclick="selectNeighborhood('الحي الشرقي')" id="nbEast">الحي الشرقي</button>
+                    <button class="neighborhood-btn" onclick="selectNeighborhood('الحي الغربي')" id="nbWest">الحي الغربي</button>
+                    <button class="neighborhood-btn" onclick="selectNeighborhood('الحي الشمالي')" id="nbNorth">الحي الشمالي</button>
+                    <button class="neighborhood-btn" onclick="selectNeighborhood('الحي الجنوبي')" id="nbSouth">الحي الجنوبي</button>
+                    <button class="neighborhood-btn" onclick="selectNeighborhood('وسط البلد')" id="nbCenter">وسط البلد</button>
+                </div>
+                <div id="neighborhoodError" class="error-message hidden">❌ يرجى اختيار الحي</div>
+            </div>
+
+            <div class="form-section">
+                <h3 id="mapSectionTitle">🗺️ حدد الموقع المباشر على الخريطة</h3>
+                <div id="reporterMap" class="map-container"></div>
+                <p id="mapHint" style="color: var(--gray); margin-top: 12px; font-size: 0.95em;">💡 اضغط على الخريطة لتحديد موقع القمامة بدقة</p>
+            </div>
+
+            <div class="form-section">
+                <h3 id="descSectionTitle">📝 وصف المشكلة</h3>
+                <textarea id="reportDescription" class="form-textarea" placeholder="اكتب وصفاً تفصيلياً واضحاً للمشكلة..." required></textarea>
+            </div>
+
+            <div class="form-section">
+                <h3 id="severityTitle">⚠️ مستوى الخطورة</h3>
+                <div class="severity-buttons">
+                    <button type="button" class="severity-btn critical" onclick="selectSeverity('critical')">
+                        <div style="font-size: 2.5em;">🔴</div>
+                        <div id="severityCritical" style="font-weight: bold; margin-top: 8px;">خطر عالي</div>
+                    </button>
+                    <button type="button" class="severity-btn moderate active" onclick="selectSeverity('moderate')">
+                        <div style="font-size: 2.5em;">🟡</div>
+                        <div id="severityModerate" style="font-weight: bold; margin-top: 8px;">خطر متوسط</div>
+                    </button>
+                    <button type="button" class="severity-btn low" onclick="selectSeverity('low')">
+                        <div style="font-size: 2.5em;">🟢</div>
+                        <div id="severityLow" style="font-weight: bold; margin-top: 8px;">خطر منخفض</div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 id="imageSectionTitle">📷 إضافة صورة (اختياري)</h3>
+                <div class="image-upload-section">
+                    <div class="upload-btn" onclick="document.getElementById('reportImageInput').click()">
+                        <div class="upload-icon">📷</div>
+                        <div id="captureLabel" style="font-weight: 600;">التقاط صورة</div>
+                    </div>
+                    <div class="upload-btn" onclick="document.getElementById('reportImageInput').click()">
+                        <div class="upload-icon">📁</div>
+                        <div id="uploadLabel" style="font-weight: 600;">رفع من الصور</div>
+                    </div>
+                </div>
+                <input type="file" id="reportImageInput" accept="image/*" style="display: none;" onchange="handleReportImage(event)">
+                <div id="reportImagePreview" class="hidden">
+                    <img id="reportImage" class="image-preview" alt="معاينة">
+                </div>
+            </div>
+
+            <button class="btn-submit" id="submitBtn" onclick="submitReport()">📤 تقديم البلاغ</button>
+            <button class="btn btn-secondary" id="reporterBackBtn" style="width: 100%; margin-top: 15px;" onclick="backToWelcome()">↩️ رجوع</button>
+        </div>
+    </div>
+
+<!-- لوحة تحكم لعرض وإدارة البلاغات -->
+    <div id="rescuerDashboard" class="hidden">
+        <div class="dashboard-header">
+            <div>
+                <div class="logo">
+                    <div class="logo-icon"></div>
+                    <span class="logo-text">بلغ</span>
+                </div>
+                <div class="welcome-text">مرحباً <span id="rescuerNameDisplay"></span> 👋</div>
+                <p style="color: var(--gray); margin-top: 5px;">🆔 الرقم الوطني: <span id="rescuerIdDisplay"></span></p>
+            </div>
+        </div>
+
+<!-- عرض بيانات عدد البلاغات حسب الحالة -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); color: var(--primary);">📊</div>
+                <div class="stat-title">إجمالي البلاغات</div>
+                <div class="stat-value" id="totalReportsRescuer">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #fee 0%, #fdd 100%); color: var(--danger);">🔴</div>
+                <div class="stat-title">خطر عالي</div>
+                <div class="stat-value" id="criticalReports">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); color: var(--warning);">🟡</div>
+                <div class="stat-title">خطر متوسط</div>
+                <div class="stat-value" id="moderateReports">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); color: var(--success);">✅</div>
+                <div class="stat-title">تم الحل</div>
+                <div class="stat-value" id="resolvedReports">0</div>
+            </div>
+        </div>
+
+<!-- عرض مواقع البلاغات على الخريطة -->
+        <div class="map-section">
+            <h2 class="section-title">🗺️ خريطة البلاغات - قرية الشجرة</h2>
+            <!-- إشعار ثابت يظهر عند رفض الوصول للموقع -->
+            <div id="locationDeniedBanner" style="display:none; align-items:center; gap:14px; background:linear-gradient(135deg,#fff7ed,#ffedd5); border:2px solid #f97316; border-radius:16px; padding:16px 22px; margin-bottom:14px; box-shadow:0 4px 14px rgba(249,115,22,0.15);">
+                <span style="font-size:2em;">📍</span>
+                <div>
+                    <div style="font-weight:700; color:#c2410c; font-size:1.05em;">لم نتمكن من تحديد موقعك تلقائياً</div>
+                    <div style="color:#92400e; margin-top:4px; font-size:0.95em;">يرجى الضغط على موقعك الحالي مباشرةً على الخريطة أدناه لتحديده يدوياً 👇</div>
+                </div>
+            </div>
+            <div id="rescuerMap" class="map-container"></div>
+        </div>
+
+<!-- عرض تحليل البلاغات باستخدام الرسوم -->
+        <div class="charts-grid">
+            <div class="chart-section">
+                <h3 class="section-title">📊 الأحياء الأكثر بلاغات</h3>
+                <div class="chart-container">
+                    <canvas id="neighborhoodChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-section">
+                <h3 class="section-title">📈 البلاغات المفتوحة والمغلقة</h3>
+                <div class="chart-container">
+                    <canvas id="resolutionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+<!-- الإحصائيات الشهرية -->
+        <div class="monthly-stats-section">
+            <h2 class="section-title">📅 الإحصائيات الشهرية</h2>
+            <div class="monthly-comparison" id="monthlyComparison"></div>
+            <div class="monthly-chart-container">
+                <canvas id="monthlyTrendChart"></canvas>
+            </div>
+        </div>
+
+<!-- قائمة البلاغات مع إمكانية التبديل بين الحالات -->
+        <div class="reports-section">
+            <div class="section-header">
+                <h2 class="section-title">📋 البلاغات</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('active')">⏳ النشطة</button>
+                    <button class="tab-btn" onclick="switchTab('resolved')">✅ المحلولة</button>
+                </div>
+            </div>
+
+            <!-- فلتر البلاغات -->
+            <div class="filter-bar">
+                <select class="filter-select" id="filterNeighborhood" onchange="applyFilters()">
+                    <option value="">🏘️ كل الأحياء</option>
+                    <option value="الحي الشرقي">الحي الشرقي</option>
+                    <option value="الحي الغربي">الحي الغربي</option>
+                    <option value="الحي الشمالي">الحي الشمالي</option>
+                    <option value="الحي الجنوبي">الحي الجنوبي</option>
+                    <option value="وسط البلد">وسط البلد</option>
+                </select>
+                <select class="filter-select" id="filterSeverity" onchange="applyFilters()">
+                    <option value="">⚠️ كل الخطورات</option>
+                    <option value="critical">🔴 خطر عالي</option>
+                    <option value="moderate">🟡 خطر متوسط</option>
+                    <option value="low">🟢 خطر منخفض</option>
+                </select>
+                <button class="filter-clear-btn" onclick="clearFilters()">✕ مسح الفلتر</button>
+            </div>
+
+            <div id="activeReportsList"></div>
+            <div id="resolvedReportsList" class="hidden"></div>
+        </div>
+    </div>
+
+<!-- رسالة تأكيد بعد إرسال البلاغ -->
+    <div id="successModal" class="success-modal hidden">
+        <div class="success-content">
+            <div class="success-icon">✅</div>
+            <h2 id="successTitle" style="margin-bottom: 20px; font-size: 2em;">شكراً لك!</h2>
+            <p id="successMsg1" style="font-size: 1.3em; margin-bottom: 15px; font-weight: 600;">تم استلام بلاغك بنجاح</p>
+            <p id="successMsg2" style="color: var(--gray); font-size: 1.1em;">سيتم حل المشكلة في أقرب وقت ممكن 🚀</p>
+            <button class="btn btn-primary" id="successOkBtn" style="margin-top: 30px; padding: 15px 50px;" onclick="closeSuccessModal()">حسناً</button>
+        </div>
+    </div>
+
+<!-- Lightbox لعرض صور البلاغات -->
+    <div id="lightboxOverlay" class="lightbox-overlay hidden" onclick="closeLightbox(event)">
+        <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+        <img id="lightboxImg" src="" alt="صورة البلاغ">
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+
+    <script>
+        // متغيرات عامة لتخزين بيانات النظام وحالة المستخدم
+        let currentRole = null;
+        let rescuerData = { name: '', nationalId: '', location: null };
+        let reporterMap = null;
+        let rescuerMap = null;
+        let selectedMarker = null;
+        let selectedLocation = null;
+        let selectedNeighborhood = null;
+        let selectedSeverity = 'moderate';
+        let reportImage = null;
+        let reports = [];
+        let rescuerMarkers = [];
+        let rescuerLocationMarker = null;
+        let currentRoutingControl = null;
+        let neighborhoodChart = null;
+        let resolutionChart = null;
+        let activeTab = 'active';
+
+        // ============ Toast Notification System ============
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3300);
+        }
+
+        // Village Center and Bounds - قرية الشجرة
+        const AL_SHAJARA_CENTER = [32.641667, 35.941667];
+        const MAP_BOUNDS = [
+            [32.635, 35.935],
+            [32.648, 35.948]
+        ];
+
+        const NEIGHBORHOOD_COORDS = {
+            'الحي الشرقي': [32.642, 35.944],
+            'الحي الغربي': [32.642, 35.939],
+            'الحي الشمالي': [32.645, 35.941],
+            'الحي الجنوبي': [32.638, 35.941],
+            'وسط البلد': [32.641667, 35.941667]
+        };
+
+        const LANDMARKS = [
+         { name: 'مسجد الشجرة الكبير (وسط البلد)', coords: [32.6416, 35.9416], icon: '🕌' },
+            { name: 'مسجد حذيفة بن اليمان', coords: [32.6440, 35.9430], icon: '🕌' },
+            { name: 'مسجد ذي النورين', coords: [32.6390, 35.9405], icon: '🕌' },
+            { name: 'مسجد المهاجرين', coords: [32.6455, 35.9450], icon: '🕌' },
+            { name: 'مسجد عمر بن الخطاب', coords: [32.6375, 33.9380], icon: '🕌' },
+            { name: 'مسجد شرحبيل بن حسنة', coords: [32.6425, 35.9365], icon: '🕌' },
+            { name: 'مسجد معاذ بن جبل', coords: [32.6470, 35.9400], icon: '🕌' },
+            { name: 'مسجد الهدى', coords: [32.6400, 35.9460], icon: '🕌' },
+            { name: 'مدرسة الشجرة الثانوية الشاملة للبنين', coords: [32.6432, 35.9438], icon: '🏫' },
+            { name: 'مدرسة الشجرة الثانوية الشاملة للبنات', coords: [32.6405, 35.9425], icon: '🏫' },
+            { name: 'مدرسة الشجرة الأساسية للبنين', coords: [32.6410, 35.9400], icon: '🏫' },
+            { name: 'مدرسة الشجرة الأساسية للبنات', coords: [32.6445, 35.9415], icon: '🏫' },
+            { name: 'مدرسة اليرموك الأساسية الخلطة', coords: [32.6385, 35.9390], icon: '🏫' },
+            { name: 'مدرسة شرحبيل بن حسنة الأساسية', coords: [32.6420, 35.9360], icon: '🏫' },
+            { name: 'المركز الصحي الأولي', coords: [32.6401, 35.9412], icon: '🏥' },
+            { name: 'مبنى البلدية القديم', coords: [32.6419, 35.9410], icon: '🏛️' }
+        ];
+
+        const NEIGHBORHOODS = ['الحي الشرقي', 'الحي الغربي', 'الحي الشمالي', 'الحي الجنوبي', 'وسط البلد'];
+// تحميل البلاغات من localStorage أو إنشاء بيانات تجريبية
+        function loadReports() {
+            const saved = localStorage.getItem('alShajara_reports');
+            if (saved) {
+                reports = JSON.parse(saved);
+            } else {
+                reports = [
+                    {
+                        id: Date.now() + '_1',
+                        neighborhood: 'الحي الشرقي',
+                        location: { lat: 32.643, lng: 35.944 },
+                        description: 'نفايات متراكمة منذ أسبوع قرب المدرسة',
+                        severity: 'critical',
+                        status: 'pending',
+                        date: new Date().toISOString(),
+                        image: null
+                    },
+                    {
+                        id: Date.now() + '_2',
+                        neighborhood: 'وسط البلد',
+                        location: { lat: 32.641, lng: 35.941 },
+                        description: 'حاوية تحتاج للإفراغ',
+                        severity: 'moderate',
+                        status: 'pending',
+                        date: new Date().toISOString(),
+                        image: null
+                    }
+                ];
+                saveReports();
+            }
+        }
+// حفظ البلاغات في localStorage
+        function saveReports() {
+            localStorage.setItem('alShajara_reports', JSON.stringify(reports));
+        }
+// إظهار أو إخفاء قائمة الإعدادات
+        function toggleSettings() {
+            const menu = document.getElementById('settingsMenu');
+            menu.classList.toggle('hidden');
+        }
+// تغيير الوضع بين الداكن والفاتح
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+// تكبير أو تصغير حجم الخط حسب اختيار المستخدم
+        function changeFontSize(action) {
+            const root = document.documentElement;
+            const style = getComputedStyle(root);
+            const currentSize = parseFloat(style.getPropertyValue('--font-size-base'));
+            let newSize = currentSize;
+            
+            if (action === 'increase' && currentSize < 24) {
+                newSize = currentSize + 2;
+            } else if (action === 'decrease' && currentSize > 12) {
+                newSize = currentSize - 2;
+            }
+            
+            root.style.setProperty('--font-size-base', newSize + 'px');
+            localStorage.setItem('fontSize', newSize);
+        }
+// تحديد نوع المستخدم (مبلغ أو منقذ) وعرض الصفحة المناسبة
+        function selectRole(role) {
+            currentRole = role;
+            document.getElementById('welcomePage').classList.add('hidden');
+            
+            if (role === 'reporter') {
+                document.getElementById('reporterInstructions').classList.remove('hidden');
+            } else if (role === 'rescuer') {
+                document.getElementById('rescuerLoginPage').classList.remove('hidden');
+            }
+        }
+
+        function closeReporterInstructions() {
+            document.getElementById('reporterInstructions').classList.add('hidden');
+            document.getElementById('reporterPage').classList.remove('hidden');
+            document.getElementById('logoutSection').classList.add('hidden');
+            initReporterMap();
+        }
+// التحقق من صحة بيانات المنقذ (الاسم والرقم الوطني) ثم تسجيل الدخول
+      function rescuerLogin(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('rescuerName').value.trim();
+    const nationalId = document.getElementById('rescuerNationalId').value.trim();
+    
+    const nameRegex = /^[\u0600-\u06FFa-zA-Z\s]+$/;
+    if (!nameRegex.test(name)) {
+        document.getElementById('nameError').classList.remove('hidden');
+        return;
+    } else {
+        document.getElementById('nameError').classList.add('hidden');
+    }
+    
+    const idRegex = /^\d{10}$/;
+    if (!idRegex.test(nationalId)) {
+        document.getElementById('idError').classList.remove('hidden');
+        return;
+    } else {
+        document.getElementById('idError').classList.add('hidden');
+    }
+    
+    rescuerData.name = name;
+    rescuerData.nationalId = nationalId;
+
+    document.getElementById('rescuerLoginPage').classList.add('hidden');
+    document.getElementById('rescuerInstructions').classList.remove('hidden');
+}
+        
+
+        function closeRescuerInstructions() {
+            document.getElementById('rescuerInstructions').classList.add('hidden');
+            document.getElementById('rescuerDashboard').classList.remove('hidden');
+            document.getElementById('rescuerNameDisplay').textContent = rescuerData.name;
+            document.getElementById('rescuerIdDisplay').textContent = rescuerData.nationalId;
+            document.getElementById('logoutSection').classList.remove('hidden');
+            initRescuerDashboard();
+        }
+// إنشاء خريطة للمبلّغ لتحديد موقع البلاغ
+        function initReporterMap() {
+            reporterMap = L.map('reporterMap', {
+                maxBounds: MAP_BOUNDS,
+                maxBoundsViscosity: 1.0,
+                zoomControl: false 
+            }).setView(AL_SHAJARA_CENTER, 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(reporterMap);
+
+            L.rectangle(MAP_BOUNDS, {
+                color: '#6366f1',
+                weight: 3,
+                fillOpacity: 0.05
+            }).addTo(reporterMap);
+
+            LANDMARKS.forEach(landmark => {
+                L.marker(landmark.coords, {
+                    icon: L.divIcon({
+                        className: 'landmark-marker',
+                        html: landmark.icon,
+                        iconSize: [35, 35]
+                    })
+                }).addTo(reporterMap).bindPopup(landmark.name);
+            });
+
+            const zoomControls = L.DomUtil.create('div', 'map-zoom-controls');
+            const zoomIn = L.DomUtil.create('button', 'zoom-btn', zoomControls);
+            zoomIn.innerHTML = '+';
+            zoomIn.onclick = () => reporterMap.zoomIn();
+            
+            const zoomOut = L.DomUtil.create('button', 'zoom-btn', zoomControls);
+            zoomOut.innerHTML = '-';
+            zoomOut.onclick = () => reporterMap.zoomOut();
+            
+            document.getElementById('reporterMap').appendChild(zoomControls);
+// عند الضغط على الخريطة يتم تحديد موقع البلاغ
+            reporterMap.on('click', function(e) {
+                // Check if clicked point is within village bounds
+                const bounds = L.latLngBounds(MAP_BOUNDS);
+                if (!bounds.contains(e.latlng)) {
+                    showToast('⚠️ الموقع الذي اخترته خارج حدود قرية الشجرة. الرجاء تحديد موقع داخل القرية.', 'warning');
+                    return;
+                }
+
+                if (selectedMarker) {
+                    reporterMap.removeLayer(selectedMarker);
+                }
+                
+                selectedLocation = e.latlng;
+                selectedMarker = L.marker([e.latlng.lat, e.latlng.lng], {
+                    icon: L.divIcon({
+                        className: 'custom-marker',
+                        html: '📍',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(reporterMap);
+            });
+        }
+// اختيار الحي وتحريك الخريطة إلى موقعه
+        function selectNeighborhood(neighborhood) {
+            selectedNeighborhood = neighborhood;
+            document.querySelectorAll('.neighborhood-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const clickedBtn = event.target.closest('.neighborhood-btn');
+            if (clickedBtn) clickedBtn.classList.add('active');
+            document.getElementById('neighborhoodError').classList.add('hidden');
+            
+            if (reporterMap && NEIGHBORHOOD_COORDS[neighborhood]) {
+                reporterMap.flyTo(NEIGHBORHOOD_COORDS[neighborhood], 17, {
+                    duration: 1
+                });
+            }
+        }
+// تحديد درجة خطورة البلاغ (عالي، متوسط، منخفض)
+        function selectSeverity(severity) {
+            selectedSeverity = severity;
+            document.querySelectorAll('.severity-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            // Use closest to reliably get the button even if a child element was clicked
+            const clickedBtn = event.target.closest('.severity-btn');
+            if (clickedBtn) clickedBtn.classList.add('active');
+        }
+// قراءة صورة البلاغ وعرضها للمستخدم قبل الإرسال
+        function handleReportImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    reportImage = e.target.result;
+                    document.getElementById('reportImage').src = reportImage;
+                    document.getElementById('reportImagePreview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+// التحقق من البيانات المدخلة ثم إنشاء البلاغ وحفظه
+        function submitReport() {
+            if (!selectedNeighborhood) {
+                document.getElementById('neighborhoodError').classList.remove('hidden');
+                return;
+            }
+
+            if (!selectedLocation) {
+                showToast('📍 يرجى تحديد الموقع على الخريطة', 'warning');
+                return;
+            }
+
+            const description = document.getElementById('reportDescription').value.trim();
+            if (!description) {
+                showToast('📝 يرجى كتابة وصف للمشكلة', 'warning');
+                return;
+            }
+
+            const newReport = {
+                id: Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                neighborhood: selectedNeighborhood,
+                location: { lat: selectedLocation.lat, lng: selectedLocation.lng },
+                description: description,
+                severity: selectedSeverity,
+                status: 'pending',
+                date: new Date().toISOString(),
+                image: reportImage
+            };
+
+            reports.push(newReport);
+            saveReports();
+// عرض رسالة تأكيد بعد إرسال البلاغ
+            document.getElementById('successModal').classList.remove('hidden');
+        }
+// إغلاق رسالة النجاح وإعادة تعيين النموذج
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.add('hidden');
+            selectedNeighborhood = null;
+            selectedLocation = null;
+            selectedSeverity = 'moderate';
+            reportImage = null;
+            document.getElementById('reportDescription').value = '';
+            document.getElementById('reportImagePreview').classList.add('hidden');
+            document.querySelectorAll('.neighborhood-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.severity-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.classList.contains('moderate')) btn.classList.add('active');
+            });
+            if (selectedMarker) {
+                reporterMap.removeLayer(selectedMarker);
+                selectedMarker = null;
+            }
+            reporterMap.setView(AL_SHAJARA_CENTER, 16);
+        }
+// تحميل البيانات وتهيئة لوحة تحكم المنقذ
+        function initRescuerDashboard() {
+            loadReports();
+            updateRescuerStats();
+            initRescuerMap();
+            initCharts();
+            displayReportsList();
+            initMonthlyStats();
+        }
+// حساب وتحديث عدد البلاغات حسب الحالة والخطورة
+        function updateRescuerStats() {
+            const total = reports.length;
+            const critical = reports.filter(r => r.severity === 'critical' && r.status !== 'resolved').length;
+            const moderate = reports.filter(r => r.severity === 'moderate' && r.status !== 'resolved').length;
+            const resolved = reports.filter(r => r.status === 'resolved').length;
+
+            document.getElementById('totalReportsRescuer').textContent = total;
+            document.getElementById('criticalReports').textContent = critical;
+            document.getElementById('moderateReports').textContent = moderate;
+            document.getElementById('resolvedReports').textContent = resolved;
+        }
+// إنشاء خريطة المنقذ وعرض البلاغات عليها
+        function initRescuerMap() {
+            rescuerMap = L.map('rescuerMap', {
+                maxBounds: MAP_BOUNDS,
+                maxBoundsViscosity: 1.0,
+                zoomControl: false
+            }).setView(AL_SHAJARA_CENTER, 16);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(rescuerMap);
+
+            L.rectangle(MAP_BOUNDS, {
+                color: '#6366f1',
+                weight: 3,
+                fillOpacity: 0.05
+            }).addTo(rescuerMap);
+
+            LANDMARKS.forEach(landmark => {
+                L.marker(landmark.coords, {
+                    icon: L.divIcon({
+                        className: 'landmark-marker',
+                        html: landmark.icon,
+                        iconSize: [35, 35]
+                    })
+                }).addTo(rescuerMap).bindPopup(landmark.name);
+            });
+
+            const zoomControls = L.DomUtil.create('div', 'map-zoom-controls');
+            const zoomIn = L.DomUtil.create('button', 'zoom-btn', zoomControls);
+            zoomIn.innerHTML = '+';
+            zoomIn.onclick = () => rescuerMap.zoomIn();
+            
+            const zoomOut = L.DomUtil.create('button', 'zoom-btn', zoomControls);
+            zoomOut.innerHTML = '-';
+            zoomOut.onclick = () => rescuerMap.zoomOut();
+            
+            document.getElementById('rescuerMap').appendChild(zoomControls);
+//  تحديد الموقع تلقائيًا
+if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            rescuerData.location = { lat, lng };
+            rescuerMap.setView([lat, lng], 17);
+
+            rescuerLocationMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'custom-marker',
+                    html: '🚨',
+                    iconSize: [45, 45]
+                })
+            }).addTo(rescuerMap).bindPopup("📍 موقعك الحالي").openPopup();
+            // إخفاء البانر إن كان ظاهراً
+            const banner = document.getElementById('locationDeniedBanner');
+            if (banner) banner.style.display = 'none';
+        },
+        function() {
+            // إظهار إشعار ثابت يطلب من المنقذ تحديد موقعه يدوياً
+            const banner = document.getElementById('locationDeniedBanner');
+            if (banner) banner.style.display = 'flex';
+        }
+    );
+} else {
+    const banner = document.getElementById('locationDeniedBanner');
+    if (banner) banner.style.display = 'flex';
+}
+//  تحديد الموقع يدويًا عند الضغط
+rescuerMap.on('click', function (e) {
+    // Check if clicked point is within village bounds
+    const bounds = L.latLngBounds(MAP_BOUNDS);
+    if (!bounds.contains(e.latlng)) {
+        showToast('⚠️ الموقع المحدد خارج حدود قرية الشجرة. الرجاء تحديد موقعك داخل القرية.', 'warning');
+        return;
+    }
+
+    rescuerData.location = {
+        lat: e.latlng.lat,
+        lng: e.latlng.lng
+    };
+
+    if (rescuerLocationMarker) {
+        rescuerMap.removeLayer(rescuerLocationMarker);
+    }
+
+    // إخفاء البانر بعد تحديد الموقع يدوياً
+    const banner = document.getElementById('locationDeniedBanner');
+    if (banner) banner.style.display = 'none';
+
+    rescuerLocationMarker = L.marker([e.latlng.lat, e.latlng.lng], {
+        icon: L.divIcon({
+            className: 'custom-marker',
+            html: '🚨',
+            iconSize: [45, 45]
+        })
+    }).addTo(rescuerMap).bindPopup("📍 موقعك");
+
+    showToast('✅ تم تحديد موقعك', 'success');
+});
+
+            updateRescuerMapMarkers();
+        }
+// عرض جميع البلاغات غير المحلولة على الخريطة
+        function updateRescuerMapMarkers() {
+            rescuerMarkers.forEach(marker => rescuerMap.removeLayer(marker));
+            rescuerMarkers = [];
+
+            reports.forEach(report => {
+                if (report.status !== 'resolved') {
+                    const emoji = report.severity === 'critical' ? '🔴' : 
+                                 report.severity === 'moderate' ? '🟡' : '🟢';
+                    
+                    const marker = L.marker([report.location.lat, report.location.lng], {
+                        icon: L.divIcon({
+                            className: 'custom-marker',
+                            html: `<div style="font-size: 35px;">${emoji}</div>`,
+                            iconSize: [35, 35]
+                        })
+                    }).addTo(rescuerMap);
+
+                    marker.bindPopup(`
+                        <strong style="font-size: 1.1em;">${report.neighborhood}</strong><br>
+                        <p style="margin: 8px 0;">${report.description}</p>
+                        <small style="color: #64748b;">${new Date(report.date).toLocaleDateString('ar-JO')}</small>
+                    `);
+
+                    rescuerMarkers.push(marker);
+                }
+            });
+        }
+// إنشاء الرسوم البيانية لعرض إحصائيات البلاغات
+        function initCharts() {
+            const neighborhoodStats = {};
+            NEIGHBORHOODS.forEach(n => neighborhoodStats[n] = 0);
+            
+            reports.forEach(report => {
+                if (report.status !== 'resolved') {
+                    neighborhoodStats[report.neighborhood] = (neighborhoodStats[report.neighborhood] || 0) + 1;
+                }
+            });
+
+            const sortedNeighborhoods = Object.entries(neighborhoodStats)
+                .sort((a, b) => b[1] - a[1]);
+
+            const neighborhoodCtx = document.getElementById('neighborhoodChart').getContext('2d');
+            if (neighborhoodChart) neighborhoodChart.destroy();
+            
+            neighborhoodChart = new Chart(neighborhoodCtx, {
+                type: 'bar',
+                data: {
+                    labels: sortedNeighborhoods.map(item => item[0]),
+                    datasets: [{
+                        label: 'عدد البلاغات',
+                        data: sortedNeighborhoods.map(item => item[1]),
+                        backgroundColor: [
+                            '#ef4444',
+                            '#f59e0b',
+                            '#10b981',
+                            '#6366f1',
+                            '#8b5cf6'
+                        ],
+                        borderRadius: 8,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
+                        }
+                    }
+                }
+            });
+
+            const resolved = reports.filter(r => r.status === 'resolved').length;
+            const openReports = reports.filter(r => r.status !== 'resolved').length;
+
+            const resolutionCtx = document.getElementById('resolutionChart').getContext('2d');
+            if (resolutionChart) resolutionChart.destroy();
+            
+            resolutionChart = new Chart(resolutionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['بلاغات مغلقة (تم الحل)', 'بلاغات مفتوحة (لم تُحل)'],
+                    datasets: [{
+                        data: [resolved, openReports],
+                        backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: { size: 14 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (tab === 'active') {
+                document.getElementById('activeReportsList').classList.remove('hidden');
+                document.getElementById('resolvedReportsList').classList.add('hidden');
+            } else {
+                document.getElementById('activeReportsList').classList.add('hidden');
+                document.getElementById('resolvedReportsList').classList.remove('hidden');
+            }
+        }
+// ترتيب البلاغات وعرضها حسب الحالة
+        function displayReportsList() {
+            const filterNeighborhood = document.getElementById('filterNeighborhood') ? document.getElementById('filterNeighborhood').value : '';
+            const filterSeverity = document.getElementById('filterSeverity') ? document.getElementById('filterSeverity').value : '';
+
+            const activeReports = reports.filter(r => {
+                if (r.status === 'resolved') return false;
+                if (filterNeighborhood && r.neighborhood !== filterNeighborhood) return false;
+                if (filterSeverity && r.severity !== filterSeverity) return false;
+                return true;
+            }).sort((a, b) => {
+                const severityOrder = { critical: 0, moderate: 1, low: 2 };
+                return severityOrder[a.severity] - severityOrder[b.severity];
+            });
+
+            const resolvedReports = reports.filter(r => {
+                if (r.status !== 'resolved') return false;
+                if (filterNeighborhood && r.neighborhood !== filterNeighborhood) return false;
+                if (filterSeverity && r.severity !== filterSeverity) return false;
+                return true;
+            }).sort((a, b) => {
+                return new Date(b.closedAt || b.date) - new Date(a.closedAt || a.date);
+            });
+
+            displayReportsInContainer(activeReports, 'activeReportsList');
+            displayReportsInContainer(resolvedReports, 'resolvedReportsList');
+        }
+
+        function displayReportsInContainer(reportsList, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            if (reportsList.length === 0) {
+                container.innerHTML = `<p style="text-align: center; color: var(--gray); padding: 40px;">${'لا توجد بلاغات'}</p>`;
+                return;
+            }
+            
+
+            reportsList.forEach(report => {
+                const card = document.createElement('div');
+                card.className = 'report-card';
+                
+                const badgeClass = report.severity === 'critical' ? 'badge-critical' :
+                                  report.severity === 'moderate' ? 'badge-moderate' : 'badge-low';
+                
+                const severityText = report.severity === 'critical'
+                    ? '🔴 خطر عالي'
+                    : report.severity === 'moderate'
+                    ? '🟡 خطر متوسط'
+                    : '🟢 خطر منخفض';
+
+                const statusText = report.status === 'pending' ? '🟢 مفتوح' : '✅ تمت المعالجة';
+                const isResolved = report.status === 'resolved';
+                const dateLocale = 'ar-JO';
+                const statusLabel = 'الحالة:';
+                const closedLabel = '🗓️ أُغلق:';
+                const resolvedBtnText = '✅ تمت المعالجة';
+                const viewMapBtnText = '🗺️ الرؤية على الخريطة';
+
+                card.innerHTML = `
+                    <div class="report-header">
+                        <span class="severity-badge ${badgeClass}">${severityText}</span>
+                        <div style="color: var(--gray); font-size: 0.95em;">
+                            ${new Date(report.date).toLocaleDateString(dateLocale, { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            })}
+                        </div>
+                    </div>
+                    <div class="report-info">
+                        <h4>📍 ${report.neighborhood}</h4>
+                        <p style="margin: 12px 0; line-height: 1.6;">${report.description}</p>
+                        <p style="color: var(--gray); font-weight: 600;">${statusLabel} ${statusText}</p>
+                        ${isResolved && report.closedAt ? `<div class="close-date-badge">${closedLabel} ${new Date(report.closedAt).toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric' })} — ${new Date(report.closedAt).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</div>` : ''}
+                        ${report.image ? `<img src="${report.image}" class="report-thumb" alt="صورة البلاغ" onclick="openLightbox('${report.id}')" title="اضغط لعرض الصورة">` : ''}
+                    </div>
+                    ${!isResolved ? `
+                    <div class="report-actions">
+                        <button class="action-btn btn-resolved" onclick="updateReportStatus('${report.id}', 'resolved')">
+                            ${resolvedBtnText}
+                        </button>
+                        <button class="action-btn btn-locate" onclick="showRouteToReport('${report.id}')">
+                            ${viewMapBtnText}
+                        </button>
+                    </div>
+                    ` : ''}
+                `;
+
+                container.appendChild(card);
+            });
+        }
+// تغيير حالة البلاغ وتحديث البيانات والعرض
+       function updateReportStatus(reportId, newStatus) {
+    const report = reports.find(r => r.id === reportId);
+
+    if (report) {
+        report.status = newStatus;
+        if (newStatus === 'resolved') {
+            report.closedAt = new Date().toISOString();
+        }
+
+        saveReports();
+
+        displayReportsList();
+        updateRescuerStats();
+        updateRescuerMapMarkers();
+
+        if (newStatus === 'resolved') {
+            showToast('✅ تمت معالجة البلاغ بنجاح', 'success');
+        }
+    }
+}
+
+// رسم مسار من موقع المنقذ إلى موقع البلاغ
+function showRouteToReport(reportId) {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) return;
+
+    //  إذا الموقع مش محدد
+    if (!rescuerData.location) {
+        showToast('⚠️ حدد موقعك أولاً! اضغط على الخريطة 👇', 'warning');
+
+        rescuerMap.setView(AL_SHAJARA_CENTER, 16);
+
+        document.getElementById('rescuerMap').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        return;
+    }
+
+    //  حذف المسار القديم
+    if (currentRoutingControl) {
+        rescuerMap.removeControl(currentRoutingControl);
+    }
+
+    //  إنشاء المسار
+    currentRoutingControl = L.Routing.control({
+        router: L.Routing.osrmv1({
+            serviceUrl: 'https://router.project-osrm.org/route/v1'
+        }),
+        waypoints: [
+            L.latLng(rescuerData.location.lat, rescuerData.location.lng),
+            L.latLng(report.location.lat, report.location.lng)
+        ],
+        routeWhileDragging: false,
+        lineOptions: {
+            styles: [{ color: '#6366f1', opacity: 0.8, weight: 6 }]
+        },
+        createMarker: function () { return null; },
+        show: false
+    }).addTo(rescuerMap);
+
+    //  تكبير تلقائي على المسار
+    rescuerMap.fitBounds([
+        [rescuerData.location.lat, rescuerData.location.lng],
+        [report.location.lat, report.location.lng]
+    ], { padding: [50, 50] });
+
+    document.getElementById('rescuerMap').scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+}
+// فتح الصورة بشكل كامل في lightbox
+        function openLightbox(reportId) {
+            const report = reports.find(r => r.id === reportId);
+            if (report && report.image) {
+                document.getElementById('lightboxImg').src = report.image;
+                document.getElementById('lightboxOverlay').classList.remove('hidden');
+            }
+        }
+
+        function closeLightbox(e) {
+            if (!e || e.target !== document.getElementById('lightboxImg')) {
+                document.getElementById('lightboxOverlay').classList.add('hidden');
+                document.getElementById('lightboxImg').src = '';
+            }
+        }
+
+        function backToWelcome() {
+            document.getElementById('reporterPage').classList.add('hidden');
+            document.getElementById('rescuerDashboard').classList.add('hidden');
+            document.getElementById('rescuerLoginPage').classList.add('hidden');
+            document.getElementById('welcomePage').classList.remove('hidden');
+            document.getElementById('logoutSection').classList.add('hidden');
+            
+            currentRole = null;
+            selectedNeighborhood = null;
+            selectedLocation = null;
+            selectedSeverity = 'moderate';
+            reportImage = null;
+        }
+// إعادة تعيين البيانات وتسجيل الخروج
+        function logout() {
+            backToWelcome();
+            rescuerData = { name: '', nationalId: '', location: null };
+            document.getElementById('settingsMenu').classList.add('hidden');
+        }
+
+        
+// ==================== فلتر البلاغات ====================
+        function applyFilters() {
+            displayReportsList();
+        }
+        function clearFilters() {
+            document.getElementById('filterNeighborhood').value = '';
+            document.getElementById('filterSeverity').value = '';
+            displayReportsList();
+        }
+
+// ==================== الإحصائيات الشهرية ====================
+        function getMonthlyStats() {
+            const now = new Date();
+            const thisMonth = now.getMonth();
+            const thisYear = now.getFullYear();
+            const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+            const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+            const thisMonthReports = reports.filter(r => {
+                const d = new Date(r.date);
+                return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+            });
+            const lastMonthReports = reports.filter(r => {
+                const d = new Date(r.date);
+                return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+            });
+            return { thisMonth: thisMonthReports, lastMonth: lastMonthReports };
+        }
+
+        function initMonthlyStats() {
+            const { thisMonth, lastMonth } = getMonthlyStats();
+            const thisTotal = thisMonth.length;
+            const lastTotal = lastMonth.length;
+            const thisResolved = thisMonth.filter(r => r.status === 'resolved').length;
+            const lastResolved = lastMonth.filter(r => r.status === 'resolved').length;
+
+            function trendBadge(curr, prev) {
+                if (curr > prev) return `<div class="trend-badge trend-up">↑ زيادة</div>`;
+                if (curr < prev) return `<div class="trend-badge trend-down">↓ انخفاض</div>`;
+                return `<div class="trend-badge trend-stable">— مستقر</div>`;
+            }
+
+
+
+            document.getElementById('monthlyComparison').innerHTML = `
+                <div class="month-stat-card">
+                    <div class="label">هذا الشهر — بلاغات</div>
+                    <div class="value">${thisTotal}</div>
+                    ${trendBadge(thisTotal, lastTotal)}
+                </div>
+                <div class="month-stat-card">
+                    <div class="label">الشهر الماضي — بلاغات</div>
+                    <div class="value">${lastTotal}</div>
+                </div>
+                <div class="month-stat-card">
+                    <div class="label">هذا الشهر — محلولة</div>
+                    <div class="value">${thisResolved}</div>
+                    ${trendBadge(thisResolved, lastResolved)}
+                </div>
+                <div class="month-stat-card">
+                    <div class="label">الشهر الماضي — محلولة</div>
+                    <div class="value">${lastResolved}</div>
+                </div>
+            `;
+
+            // رسم بياني - آخر 6 أشهر
+            const now = new Date();
+            const monthLabels = [];
+            const monthData = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const count = reports.filter(r => {
+                    const rd = new Date(r.date);
+                    return rd.getMonth() === d.getMonth() && rd.getFullYear() === d.getFullYear();
+                }).length;
+                monthLabels.push(d.toLocaleDateString('ar-JO', { month: 'short' }));
+                monthData.push(count);
+            }
+
+            const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+            if (window._monthlyChart) window._monthlyChart.destroy();
+            window._monthlyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: monthLabels,
+                    datasets: [{
+                        label: 'البلاغات',
+                        data: monthData,
+                        borderColor: '#2d6a4f',
+                        backgroundColor: 'rgba(45,106,79,0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#2d6a4f',
+                        pointRadius: 5,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            loadReports();
+            
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            }
+            
+            const savedFontSize = localStorage.getItem('fontSize');
+            if (savedFontSize) {
+                document.documentElement.style.setProperty('--font-size-base', savedFontSize + 'px');
+            }
+
+            document.addEventListener('click', function(e) {
+                const settingsMenu = document.getElementById('settingsMenu');
+                const settingsBtn = document.querySelector('.settings-btn');
+                if (!settingsMenu.contains(e.target) && e.target !== settingsBtn) {
+                    settingsMenu.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
